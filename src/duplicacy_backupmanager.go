@@ -159,7 +159,7 @@ func setEntryContent(entries []*Entry, chunkLengths []int, offset int) {
 // unmodified files with last backup).  Otherwise (or if this is the first backup), the entire repository will
 // be scanned to create the snapshot.  'tag' is the tag assigned to the new snapshot.
 func (manager *BackupManager) Backup(top string, quickMode bool, threads int, tag string,
-	showStatistics bool, shadowCopy bool) bool {
+	showStatistics bool, shadowCopy bool, shadowCopyTimeout int) bool {
 
 	var err error
 	top, err = filepath.Abs(top)
@@ -180,7 +180,7 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
 		LOG_INFO("BACKUP_START", "Last backup at revision %d found", remoteSnapshot.Revision)
 	}
 
-	shadowTop := CreateShadowCopy(top, shadowCopy)
+	shadowTop := CreateShadowCopy(top, shadowCopy, shadowCopyTimeout)
 	defer DeleteShadowCopy()
 
 	LOG_INFO("BACKUP_INDEXING", "Indexing %s", top)
@@ -199,7 +199,7 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
 	// A revision number of 0 means this is the initial backup
 	if remoteSnapshot.Revision > 0 {
 		// Add all chunks in the last snapshot to the cache
-		for _, chunkID := range manager.SnapshotManager.GetSnapshotChunks(remoteSnapshot) {
+		for _, chunkID := range manager.SnapshotManager.GetSnapshotChunks(remoteSnapshot, true) {
 			chunkCache[chunkID] = true
 		}
 	} else {
@@ -750,7 +750,7 @@ func (manager *BackupManager) Restore(top string, revision int, inPlace bool, qu
 	}
 
 	remoteSnapshot := manager.SnapshotManager.DownloadSnapshot(manager.snapshotID, revision)
-	manager.SnapshotManager.DownloadSnapshotContents(remoteSnapshot, patterns)
+	manager.SnapshotManager.DownloadSnapshotContents(remoteSnapshot, patterns, true)
 
 	localSnapshot, _, _, err := CreateSnapshotFromDirectory(manager.snapshotID, top)
 	if err != nil {
@@ -918,9 +918,8 @@ func (manager *BackupManager) Restore(top string, revision int, inPlace bool, qu
 			totalFileSize, downloadedFileSize, startDownloadingTime) {
 			downloadedFileSize += file.Size
 			downloadedFiles = append(downloadedFiles, file)
-			file.RestoreMetadata(fullPath, nil, setOwner)
 		}
-
+		file.RestoreMetadata(fullPath, nil, setOwner)
 	}
 
 	if deleteMode && len(patterns) == 0 {

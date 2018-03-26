@@ -461,6 +461,42 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
 		SavePassword(preference, "s3_secret", secretKey)
 
 		return storage
+
+	} else if matched[1] == "wasabi" {
+
+		region := matched[2]
+		endpoint := matched[3]
+		bucket := matched[5]
+
+		if region != "" {
+			region = region[:len(region)-1]
+		}
+
+		key := GetPassword(preference, "wasabi_key",
+			"Enter Wasabi key:", true, resetPassword)
+		secret := GetPassword(preference, "wasabi_secret",
+			"Enter Wasabi secret:", true, resetPassword)
+
+		storageDir := ""
+		if strings.Contains(bucket, "/") {
+			firstSlash := strings.Index(bucket, "/")
+			storageDir = bucket[firstSlash+1:]
+			bucket = bucket[:firstSlash]
+		}
+
+		storage, err := CreateWasabiStorage(region, endpoint,
+			bucket, storageDir, key, secret, threads)
+
+		if err != nil {
+			LOG_ERROR("STORAGE_CREATE", "Failed to load the Wasabi storage at %s: %v", storageURL, err)
+			return nil
+		}
+
+		SavePassword(preference, "wasabi_key", key)
+		SavePassword(preference, "wasabi_secret", secret)
+
+		return storage
+
 	} else if matched[1] == "dropbox" {
 		storageDir := matched[3] + matched[5]
 		token := GetPassword(preference, "dropbox_token", "Enter Dropbox access token:", true, resetPassword)
@@ -560,6 +596,16 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
 		}
 		SavePassword(preference, "hubic_token", tokenFile)
 		return hubicStorage
+	} else if matched[1] == "swift" {
+		prompt := fmt.Sprintf("Enter the OpenStack Swift key:")
+		key := GetPassword(preference, "swift_key", prompt, true, resetPassword)
+		swiftStorage, err := CreateSwiftStorage(storageURL[8:], key, threads)
+		if err != nil {
+			LOG_ERROR("STORAGE_CREATE", "Failed to load the OpenStack Swift storage at %s: %v", storageURL, err)
+			return nil
+		}
+		SavePassword(preference, "swift_key", key)
+		return swiftStorage
 	} else {
 		LOG_ERROR("STORAGE_CREATE", "The storage type '%s' is not supported", matched[1])
 		return nil
